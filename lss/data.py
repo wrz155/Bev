@@ -52,6 +52,49 @@ class NuscData(torch.utils.data.Dataset):
         samples.sort(key=lambda x: (x['scene_token'], x['timestamp']))
         return samples
 
+    def fix_nuscenes_formatting(self):
+        """If nuscenes is stored with trainval/1 trainval/2 ... structure, adjust the file paths
+        stored in the nuScenes object.
+        """
+        # check if default file paths work
+        rec = self.ixes[0]
+        sampimg = self.nusc.get('sample_data', rec['data']['CAM_FRONT'])
+        imgname = os.path.join(self.nusc.dataroot, sampimg['filename'])
+
+        def find_name(f):
+            d, fi = os.path.split(f)
+            d, di = os.path.split(d)
+            d, d0 = os.path.split(d)
+            d, d1 = os.path.split(d)
+            d, d2 = os.path.split(d)
+            return di, fi, f'{d2}/{d1}/{d0}/{di}/{fi}'
+
+    def get_image_data(self, rec, cams):
+        imgs = []
+        rots = []
+        trans = []
+        intrins = []
+        post_rots = []
+        post_trans = []
+
+        for cam in cams:
+            samp = self.nusc.get('sample_data', rec['data'][cam])
+            imgname = os.path.join(self.nusc.dataroot, samp['filename'])
+
+    def choose_cams(self):
+        if self.is_train and self.data_aug_conf['Ncams'] < len(self.data_aug_conf['cams']):
+            cams = np.random.choice(self.data_aug_conf['cams'], self.data_aug_conf['Ncams'],
+                                    replace=False)
+        else:
+            cams = self.data_aug_conf['cams']
+        return cams
+
+    def __str__(self):
+        return f"""NuscData: {len(self)} samples. Split: {"train" if self.is_train else "val"}.
+                   Augmentation Conf: {self.data_aug_conf}"""
+
+    def __len__(self):
+        return len(self.ixes)
 
 class VizData(NuscData):
     def __init__(self, *args, **kwargs):
@@ -112,7 +155,6 @@ def build_data(version, dataroot, data_aug_conf, grid_conf, bsz, nworkers, parse
                                             shuffle=False,
                                             num_workers=nworkers)
     return trainloader, valloader
-
 
 
 
